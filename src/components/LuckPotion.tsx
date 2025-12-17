@@ -5,9 +5,10 @@ interface LuckPotionProps {
   potionCount: number;
   potionTimeLeft: number;
   onActivate: () => void;
+  maxStacks?: number;
 }
 
-const LuckPotion = ({ potionCount, potionTimeLeft, onActivate }: LuckPotionProps) => {
+const LuckPotion = ({ potionCount, potionTimeLeft, onActivate, maxStacks = 3 }: LuckPotionProps) => {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -32,7 +33,7 @@ const LuckPotion = ({ potionCount, potionTimeLeft, onActivate }: LuckPotionProps
       
       <div className="flex items-center gap-3 text-xs font-mono">
         <span className="text-muted-foreground">
-          Stacked: <span className="text-secondary">{potionCount}x</span>
+          Stacked: <span className="text-secondary">{potionCount}/{maxStacks}</span>
         </span>
         {potionTimeLeft > 0 && (
           <span className="text-secondary animate-pulse">
