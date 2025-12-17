@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, MousePointerClick, Zap } from "lucide-react";
 import RollButton from "@/components/RollButton";
 import NumberDisplay from "@/components/NumberDisplay";
@@ -8,10 +8,14 @@ import HighestRoll from "@/components/HighestRoll";
 import AutoRollButton from "@/components/AutoRollButton";
 import LuckPotion from "@/components/LuckPotion";
 import SuperRollIndicator from "@/components/SuperRollIndicator";
+import ShopButton from "@/components/ShopButton";
+import ShopModal from "@/components/ShopModal";
+import { SHOP_ITEMS, calculateCost } from "@/lib/shopData";
 
 const MAX_NUMBER = 2_500_000_000;
-const POTION_DURATION = 300; // 5 minutes in seconds
+const BASE_POTION_DURATION = 300; // 5 minutes in seconds
 const POTION_BONUS = 0.5; // Each potion adds 0.5x to luck
+const BASE_AUTO_ROLL_SPEED = 200;
 
 const Index = () => {
   const [currentNumber, setCurrentNumber] = useState<number | null>(null);
@@ -21,33 +25,38 @@ const Index = () => {
   const [isRolling, setIsRolling] = useState(false);
   const [isRare, setIsRare] = useState(false);
   
-  // New features
+  // Auto-roll & potions
   const [isAutoRolling, setIsAutoRolling] = useState(false);
   const [potionCount, setPotionCount] = useState(0);
   const [potionTimeLeft, setPotionTimeLeft] = useState(0);
   const [rollsUntilSuper, setRollsUntilSuper] = useState(10);
   const [isSuperRoll, setIsSuperRoll] = useState(false);
   
+  // Shop & upgrades
+  const [isShopOpen, setIsShopOpen] = useState(false);
+  const [currency, setCurrency] = useState(0);
+  const [upgradeLevels, setUpgradeLevels] = useState<Record<string, number>>({});
+  
   const autoRollRef = useRef<NodeJS.Timeout | null>(null);
   const potionTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Calculate effective luck (base + potion bonus)
-  const effectiveLuck = luckMultiplier + (potionCount * POTION_BONUS);
+  // Calculate upgrade bonuses
+  const permanentLuckBonus = (upgradeLevels['permanent_luck'] || 0) * 0.25 + 
+                              (upgradeLevels['luck_power'] || 0) * 0.5;
+  const autoRollSpeed = BASE_AUTO_ROLL_SPEED - (upgradeLevels['auto_speed'] || 0) * 50;
+  const maxPotionStacks = 3 + (upgradeLevels['potion_slots'] || 0);
+  const potionDuration = BASE_POTION_DURATION + (upgradeLevels['potion_duration'] || 0) * 120;
+
+  // Calculate effective luck (base + permanent + potion bonus)
+  const effectiveLuck = luckMultiplier + permanentLuckBonus + (potionCount * POTION_BONUS);
 
   const generateNumber = useCallback((useSuperRoll: boolean) => {
-    // For super roll, double the effective luck
     const currentLuck = useSuperRoll ? effectiveLuck * 2 : effectiveLuck;
-    
-    // Calculate the effective max based on luck (exponential scaling)
     const luckPower = Math.pow(currentLuck, 4);
     const effectiveMax = Math.min(Math.floor(50 * luckPower), MAX_NUMBER);
-    
-    // Within the effective range, lower numbers are still more common
     const random = Math.random();
     const biasedRandom = Math.pow(random, 2);
-    
     const number = Math.floor(biasedRandom * effectiveMax) + 1;
-    
     return number;
   }, [effectiveLuck]);
 
@@ -64,7 +73,6 @@ const Index = () => {
       setCurrentNumber(number);
       setRollCount((prev) => prev + 1);
       
-      // Increase luck multiplier with each roll
       setLuckMultiplier((prev) => {
         if (prev < 3) return prev + 0.05;
         if (prev < 5) return prev + 0.03;
@@ -72,7 +80,6 @@ const Index = () => {
         return Math.min(prev + 0.01, 10);
       });
       
-      // Update super roll counter
       if (useSuperRoll) {
         setIsSuperRoll(false);
         setRollsUntilSuper(10);
@@ -86,15 +93,16 @@ const Index = () => {
         });
       }
       
-      // Check if it's a rare roll
       const luckPower = Math.pow(effectiveLuck, 4);
       const effectiveMax = Math.min(Math.floor(50 * luckPower), MAX_NUMBER);
       if (number >= effectiveMax * 0.8 || useSuperRoll) {
         setIsRare(true);
       }
       
+      // Update highest roll AND currency
       if (number > highestRoll) {
         setHighestRoll(number);
+        setCurrency(number);
       }
       
       setIsRolling(false);
@@ -106,7 +114,7 @@ const Index = () => {
     if (isAutoRolling) {
       autoRollRef.current = setInterval(() => {
         handleRoll();
-      }, 200);
+      }, autoRollSpeed);
     } else {
       if (autoRollRef.current) {
         clearInterval(autoRollRef.current);
@@ -119,7 +127,7 @@ const Index = () => {
         clearInterval(autoRollRef.current);
       }
     };
-  }, [isAutoRolling, handleRoll]);
+  }, [isAutoRolling, handleRoll, autoRollSpeed]);
 
   // Potion timer logic
   useEffect(() => {
@@ -128,7 +136,6 @@ const Index = () => {
         setPotionTimeLeft((prev) => prev - 1);
       }, 1000);
     } else if (potionCount > 0 && potionTimeLeft === 0) {
-      // Timer ran out, remove all potions
       setPotionCount(0);
     }
     
@@ -140,12 +147,24 @@ const Index = () => {
   }, [potionTimeLeft, potionCount]);
 
   const handleActivatePotion = () => {
-    setPotionCount((prev) => prev + 1);
-    setPotionTimeLeft(POTION_DURATION); // Reset/set timer to 5 minutes
+    if (potionCount < maxPotionStacks) {
+      setPotionCount((prev) => Math.min(prev + 1, maxPotionStacks));
+      setPotionTimeLeft(potionDuration);
+    }
   };
 
   const toggleAutoRoll = () => {
     setIsAutoRolling((prev) => !prev);
+  };
+
+  const handlePurchase = (itemId: string, cost: number) => {
+    if (currency >= cost) {
+      setCurrency((prev) => prev - cost);
+      setUpgradeLevels((prev) => ({
+        ...prev,
+        [itemId]: (prev[itemId] || 0) + 1,
+      }));
+    }
   };
 
   const currentMaxRange = Math.min(Math.floor(50 * Math.pow(effectiveLuck, 4)), MAX_NUMBER);
@@ -177,7 +196,7 @@ const Index = () => {
         </div>
 
         {/* Stats Row */}
-        <div className="grid grid-cols-2 gap-4 mb-8">
+        <div className="grid grid-cols-2 gap-4 mb-4">
           <StatCard
             label="Luck Multiplier"
             value={`${effectiveLuck.toFixed(2)}x`}
@@ -192,14 +211,25 @@ const Index = () => {
           />
         </div>
 
-        {/* Luck Potion */}
-        <div className="flex justify-center mb-6">
+        {/* Shop & Potion Row */}
+        <div className="flex items-center justify-center gap-4 mb-6">
+          <ShopButton onClick={() => setIsShopOpen(true)} currency={currency} />
           <LuckPotion
             potionCount={potionCount}
             potionTimeLeft={potionTimeLeft}
             onActivate={handleActivatePotion}
+            maxStacks={maxPotionStacks}
           />
         </div>
+
+        {/* Upgrade Indicators */}
+        {permanentLuckBonus > 0 && (
+          <div className="text-center mb-4">
+            <span className="text-xs font-mono text-accent">
+              +{permanentLuckBonus.toFixed(2)} permanent luck from upgrades
+            </span>
+          </div>
+        )}
 
         {/* Main Game Area */}
         <motion.div
@@ -209,21 +239,17 @@ const Index = () => {
           initial={{ scale: 0.95 }}
           animate={{ scale: 1 }}
         >
-          {/* Super Roll Indicator */}
           <div className="flex justify-center mb-4">
             <SuperRollIndicator rollsUntilSuper={rollsUntilSuper} isSuperRoll={isSuperRoll} />
           </div>
 
-          {/* Number Display */}
           <NumberDisplay number={currentNumber} isRare={isRare} />
 
-          {/* Roll Buttons */}
           <div className="flex justify-center items-center gap-4 mt-8">
             <AutoRollButton isAutoRolling={isAutoRolling} onClick={toggleAutoRoll} />
             <RollButton onClick={handleRoll} isRolling={isRolling} isSuperRoll={isSuperRoll} />
           </div>
 
-          {/* Luck Info */}
           <div className="mt-6 flex items-center justify-center gap-2 text-muted-foreground">
             <Zap className="w-4 h-4 text-accent" />
             <span className="text-xs font-mono">
@@ -233,7 +259,6 @@ const Index = () => {
           </div>
         </motion.div>
 
-        {/* Highest Roll */}
         <HighestRoll highest={highestRoll} />
 
         {/* Luck Progression Guide */}
@@ -248,6 +273,19 @@ const Index = () => {
           </div>
         </div>
       </motion.div>
+
+      {/* Shop Modal */}
+      <AnimatePresence>
+        {isShopOpen && (
+          <ShopModal
+            isOpen={isShopOpen}
+            onClose={() => setIsShopOpen(false)}
+            currency={currency}
+            upgradeLevels={upgradeLevels}
+            onPurchase={handlePurchase}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
