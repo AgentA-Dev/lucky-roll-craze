@@ -17,16 +17,24 @@ const Index = () => {
   const [isRare, setIsRare] = useState(false);
 
   const generateNumber = useCallback(() => {
-    // Higher luck multiplier = better chance at higher numbers
-    // Using exponential distribution modified by luck
+    // Luck determines the maximum range you can realistically hit
+    // At 1x luck: max ~50
+    // At 2x luck: max ~500
+    // At 3x luck: max ~5,000
+    // At 5x luck: max ~500,000
+    // At 7x luck: max ~50,000,000
+    // At 10x luck: max ~2.5 billion
+    
+    // Calculate the effective max based on luck (exponential scaling)
+    const luckPower = Math.pow(luckMultiplier, 4); // Luck has exponential effect
+    const effectiveMax = Math.min(Math.floor(50 * luckPower), MAX_NUMBER);
+    
+    // Within the effective range, lower numbers are still more common
     const random = Math.random();
+    const biasedRandom = Math.pow(random, 2); // Square to bias toward lower numbers
     
-    // The luck multiplier reduces the exponent, making higher numbers more likely
-    const exponent = 4 / luckMultiplier; // Base exponent of 4, reduced by luck
-    const biasedRandom = Math.pow(random, exponent);
-    
-    // Map to our range (1 to 2.5 billion)
-    const number = Math.floor(biasedRandom * MAX_NUMBER) + 1;
+    // Generate number within the luck-based range
+    const number = Math.floor(biasedRandom * effectiveMax) + 1;
     
     return number;
   }, [luckMultiplier]);
@@ -41,11 +49,18 @@ const Index = () => {
       setCurrentNumber(number);
       setRollCount((prev) => prev + 1);
       
-      // Increase luck multiplier slightly with each roll
-      setLuckMultiplier((prev) => Math.min(prev + 0.01, 10));
+      // Increase luck multiplier with each roll (faster early, slower later)
+      setLuckMultiplier((prev) => {
+        if (prev < 3) return prev + 0.05;
+        if (prev < 5) return prev + 0.03;
+        if (prev < 8) return prev + 0.02;
+        return Math.min(prev + 0.01, 10);
+      });
       
-      // Check if it's a rare roll (top 1%)
-      if (number >= MAX_NUMBER * 0.4) {
+      // Check if it's a rare roll based on current luck range
+      const luckPower = Math.pow(luckMultiplier, 4);
+      const effectiveMax = Math.min(Math.floor(50 * luckPower), MAX_NUMBER);
+      if (number >= effectiveMax * 0.8) {
         setIsRare(true);
       }
       
@@ -113,9 +128,9 @@ const Index = () => {
 
           {/* Luck Info */}
           <div className="mt-6 flex items-center justify-center gap-2 text-muted-foreground">
-            <Zap className="w-4 h-4 text-accent" />
+          <Zap className="w-4 h-4 text-accent" />
             <span className="text-xs font-mono">
-              Luck increases with each roll
+              Max range: ~{Math.min(Math.floor(50 * Math.pow(luckMultiplier, 4)), MAX_NUMBER).toLocaleString()}
             </span>
           </div>
         </motion.div>
@@ -123,14 +138,15 @@ const Index = () => {
         {/* Highest Roll */}
         <HighestRoll highest={highestRoll} />
 
-        {/* Rarity Guide */}
+        {/* Luck Progression Guide */}
         <div className="mt-8 text-center">
-          <p className="text-xs text-muted-foreground font-mono mb-2">Rarity Guide</p>
+          <p className="text-xs text-muted-foreground font-mono mb-2">Luck Unlocks</p>
           <div className="flex flex-wrap justify-center gap-4 text-xs font-mono">
-            <span className="text-muted-foreground">Common</span>
-            <span className="text-primary">100M+</span>
-            <span className="text-secondary">1B+</span>
-            <span className="text-accent text-glow-accent">2B+</span>
+            <span className={luckMultiplier >= 1 ? "text-muted-foreground" : "text-muted"}>1x: ~50</span>
+            <span className={luckMultiplier >= 3 ? "text-primary" : "text-muted"}>3x: ~4K</span>
+            <span className={luckMultiplier >= 5 ? "text-primary text-glow-primary" : "text-muted"}>5x: ~300K</span>
+            <span className={luckMultiplier >= 7 ? "text-secondary" : "text-muted"}>7x: ~120M</span>
+            <span className={luckMultiplier >= 9 ? "text-accent text-glow-accent" : "text-muted"}>9x: ~3B</span>
           </div>
         </div>
       </motion.div>

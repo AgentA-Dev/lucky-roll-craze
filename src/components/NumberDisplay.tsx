@@ -12,9 +12,10 @@ const NumberDisplay = ({ number, isRare }: NumberDisplayProps) => {
 
   const getRarityColor = () => {
     if (!number) return "";
-    if (number >= 2_000_000_000) return "text-accent text-glow-accent";
-    if (number >= 1_000_000_000) return "text-secondary";
-    if (number >= 100_000_000) return "text-primary text-glow-primary";
+    if (number >= 1_000_000_000) return "text-accent text-glow-accent"; // Billion+
+    if (number >= 100_000_000) return "text-secondary"; // 100M+
+    if (number >= 1_000_000) return "text-primary text-glow-primary"; // 1M+
+    if (number >= 10_000) return "text-primary"; // 10K+
     return "text-foreground";
   };
 
