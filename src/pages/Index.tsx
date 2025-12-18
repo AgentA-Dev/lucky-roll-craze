@@ -10,11 +10,15 @@ import LuckPotion from "@/components/LuckPotion";
 import SuperRollIndicator from "@/components/SuperRollIndicator";
 import ShopButton from "@/components/ShopButton";
 import ShopModal from "@/components/ShopModal";
+import PrestigeButton from "@/components/PrestigeButton";
+import VoidShopModal from "@/components/VoidShopModal";
+import LogoHeader from "@/components/LogoHeader";
 import { SHOP_ITEMS, calculateCost } from "@/lib/shopData";
 
 const MAX_NUMBER = 2_500_000_000;
-const BASE_POTION_DURATION = 300; // 5 minutes in seconds
-const POTION_BONUS = 0.5; // Each potion adds 0.5x to luck
+const PRESTIGE_THRESHOLD = 1_000_000_000;
+const BASE_POTION_DURATION = 300;
+const POTION_BONUS = 0.5;
 const BASE_AUTO_ROLL_SPEED = 200;
 
 const Index = () => {
@@ -37,6 +41,12 @@ const Index = () => {
   const [currency, setCurrency] = useState(0);
   const [upgradeLevels, setUpgradeLevels] = useState<Record<string, number>>({});
   
+  // Prestige & Void system
+  const [prestigeCount, setPrestigeCount] = useState(0);
+  const [voidPoints, setVoidPoints] = useState(0);
+  const [voidUpgrades, setVoidUpgrades] = useState<Record<string, number>>({});
+  const [isVoidShopOpen, setIsVoidShopOpen] = useState(false);
+  
   const autoRollRef = useRef<NodeJS.Timeout | null>(null);
   const potionTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -45,20 +55,30 @@ const Index = () => {
                               (upgradeLevels['luck_power'] || 0) * 0.5;
   const autoRollSpeed = BASE_AUTO_ROLL_SPEED - (upgradeLevels['auto_speed'] || 0) * 50;
   const maxPotionStacks = 3 + (upgradeLevels['potion_slots'] || 0);
-  const potionDuration = BASE_POTION_DURATION + (upgradeLevels['potion_duration'] || 0) * 120;
+  const basePotionDuration = BASE_POTION_DURATION + (upgradeLevels['potion_duration'] || 0) * 120;
+  
+  // Void upgrades
+  const voidSuperRollBoost = (voidUpgrades['super_roll_boost'] || 0) * 5;
+  const voidPotionPower = (voidUpgrades['void_potion_power'] || 0) * 1;
+  const voidPotionDuration = (voidUpgrades['void_potion_duration'] || 0) * 300;
+  
+  const potionDuration = basePotionDuration + voidPotionDuration;
+  const effectivePotionBonus = POTION_BONUS + voidPotionPower;
 
   // Calculate effective luck (base + permanent + potion bonus)
-  const effectiveLuck = luckMultiplier + permanentLuckBonus + (potionCount * POTION_BONUS);
+  const effectiveLuck = luckMultiplier + permanentLuckBonus + (potionCount * effectivePotionBonus);
 
   const generateNumber = useCallback((useSuperRoll: boolean) => {
-    const currentLuck = useSuperRoll ? effectiveLuck * 2 : effectiveLuck;
+    // Super roll now gets base 2x PLUS void upgrade bonus
+    const superRollMultiplier = useSuperRoll ? (2 + voidSuperRollBoost) : 1;
+    const currentLuck = effectiveLuck * superRollMultiplier;
     const luckPower = Math.pow(currentLuck, 4);
     const effectiveMax = Math.min(Math.floor(50 * luckPower), MAX_NUMBER);
     const random = Math.random();
     const biasedRandom = Math.pow(random, 2);
     const number = Math.floor(biasedRandom * effectiveMax) + 1;
     return number;
-  }, [effectiveLuck]);
+  }, [effectiveLuck, voidSuperRollBoost]);
 
   const handleRoll = useCallback(() => {
     if (isRolling) return;
@@ -99,7 +119,6 @@ const Index = () => {
         setIsRare(true);
       }
       
-      // Update highest roll AND currency
       if (number > highestRoll) {
         setHighestRoll(number);
         setCurrency(number);
@@ -167,7 +186,40 @@ const Index = () => {
     }
   };
 
+  const handlePrestige = () => {
+    if (highestRoll >= PRESTIGE_THRESHOLD) {
+      setPrestigeCount((prev) => prev + 1);
+      setVoidPoints((prev) => prev + 1);
+      
+      // Reset progress
+      setCurrentNumber(null);
+      setRollCount(0);
+      setLuckMultiplier(1);
+      setHighestRoll(0);
+      setCurrency(0);
+      setPotionCount(0);
+      setPotionTimeLeft(0);
+      setRollsUntilSuper(10);
+      setIsSuperRoll(false);
+      setIsAutoRolling(false);
+      // Keep upgradeLevels (currency shop) - they reset with currency
+      setUpgradeLevels({});
+    }
+  };
+
+  const handleVoidPurchase = (itemId: string, cost: number) => {
+    if (voidPoints >= cost) {
+      setVoidPoints((prev) => prev - cost);
+      setVoidUpgrades((prev) => ({
+        ...prev,
+        [itemId]: (prev[itemId] || 0) + 1,
+      }));
+    }
+  };
+
+  const canPrestige = highestRoll >= PRESTIGE_THRESHOLD;
   const currentMaxRange = Math.min(Math.floor(50 * Math.pow(effectiveLuck, 4)), MAX_NUMBER);
+  const superRollMultiplier = 2 + voidSuperRollBoost;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8">
@@ -178,6 +230,9 @@ const Index = () => {
         {potionCount > 0 && (
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-secondary/10 rounded-full blur-3xl animate-pulse" />
         )}
+        {prestigeCount > 0 && (
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-violet-500/10 rounded-full blur-3xl" />
+        )}
       </div>
 
       <motion.div
@@ -185,14 +240,25 @@ const Index = () => {
         animate={{ opacity: 1, y: 0 }}
         className="relative z-10 w-full max-w-2xl"
       >
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="font-display text-4xl md:text-5xl font-bold text-foreground mb-2">
-            <span className="text-primary text-glow-primary">LUCK</span> ROLLER
-          </h1>
-          <p className="text-muted-foreground font-mono text-sm">
-            Roll for glory • 1 to 2.5 billion
-          </p>
+        {/* Logo Header */}
+        <LogoHeader />
+
+        {/* Prestige Section */}
+        <div className="flex flex-col items-center gap-4 mb-6">
+          <PrestigeButton
+            canPrestige={canPrestige}
+            prestigeCount={prestigeCount}
+            voidPoints={voidPoints}
+            onClick={handlePrestige}
+          />
+          {voidPoints > 0 && (
+            <button
+              onClick={() => setIsVoidShopOpen(true)}
+              className="text-xs font-mono text-violet-400 hover:text-violet-300 transition-colors underline"
+            >
+              Open Void Shop ({voidPoints} VP)
+            </button>
+          )}
         </div>
 
         {/* Stats Row */}
@@ -223,11 +289,18 @@ const Index = () => {
         </div>
 
         {/* Upgrade Indicators */}
-        {permanentLuckBonus > 0 && (
-          <div className="text-center mb-4">
-            <span className="text-xs font-mono text-accent">
-              +{permanentLuckBonus.toFixed(2)} permanent luck from upgrades
-            </span>
+        {(permanentLuckBonus > 0 || voidSuperRollBoost > 0) && (
+          <div className="text-center mb-4 space-y-1">
+            {permanentLuckBonus > 0 && (
+              <span className="text-xs font-mono text-accent block">
+                +{permanentLuckBonus.toFixed(2)} permanent luck from upgrades
+              </span>
+            )}
+            {voidSuperRollBoost > 0 && (
+              <span className="text-xs font-mono text-violet-400 block">
+                Super Roll: {superRollMultiplier}x luck (void enhanced)
+              </span>
+            )}
           </div>
         )}
 
@@ -254,7 +327,7 @@ const Index = () => {
             <Zap className="w-4 h-4 text-accent" />
             <span className="text-xs font-mono">
               Max range: ~{currentMaxRange.toLocaleString()}
-              {isSuperRoll && <span className="text-accent ml-2">(2x for super roll!)</span>}
+              {isSuperRoll && <span className="text-accent ml-2">({superRollMultiplier}x for super roll!)</span>}
             </span>
           </div>
         </motion.div>
@@ -283,6 +356,19 @@ const Index = () => {
             currency={currency}
             upgradeLevels={upgradeLevels}
             onPurchase={handlePurchase}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Void Shop Modal */}
+      <AnimatePresence>
+        {isVoidShopOpen && (
+          <VoidShopModal
+            isOpen={isVoidShopOpen}
+            onClose={() => setIsVoidShopOpen(false)}
+            voidPoints={voidPoints}
+            voidUpgrades={voidUpgrades}
+            onPurchase={handleVoidPurchase}
           />
         )}
       </AnimatePresence>
