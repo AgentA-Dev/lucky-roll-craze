@@ -56,15 +56,21 @@ const LogoHeader = () => {
         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
       />
 
-      {/* Logo image */}
-      <motion.img
-        src={agentsLogo}
-        alt="Agents RNG"
-        className="h-16 md:h-20 w-auto relative z-10 drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      />
+      {/* Logo image with transparent background effect */}
+      <div className="relative z-10 bg-transparent">
+        <motion.img
+          src={agentsLogo}
+          alt="Agents RNG"
+          className="h-16 md:h-20 w-auto drop-shadow-[0_0_20px_rgba(255,255,255,0.4)]"
+          style={{ 
+            mixBlendMode: 'screen',
+            filter: 'brightness(1.3)'
+          }}
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        />
+      </div>
     </div>
   );
 };
