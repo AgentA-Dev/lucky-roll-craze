@@ -8,6 +8,16 @@ export interface ShopItem {
   category: 'luck' | 'speed' | 'potion';
 }
 
+export interface VoidShopItem {
+  id: string;
+  name: string;
+  description: string;
+  baseCost: number;
+  costPerLevel: number;
+  maxLevel: number;
+  category: 'super_roll' | 'void_potion';
+}
+
 export interface PlayerUpgrades {
   permanentLuck: number;
   autoRollSpeed: number;
@@ -60,6 +70,36 @@ export const SHOP_ITEMS: ShopItem[] = [
     costMultiplier: 2.5,
     maxLevel: 5,
     category: 'potion',
+  },
+];
+
+export const VOID_SHOP_ITEMS: VoidShopItem[] = [
+  {
+    id: 'super_roll_boost',
+    name: 'Void Surge',
+    description: '+5x luck multiplier on super rolls',
+    baseCost: 5,
+    costPerLevel: 5,
+    maxLevel: 10,
+    category: 'super_roll',
+  },
+  {
+    id: 'void_potion_power',
+    name: 'Void Elixir',
+    description: '+1x potion effectiveness',
+    baseCost: 3,
+    costPerLevel: 3,
+    maxLevel: 8,
+    category: 'void_potion',
+  },
+  {
+    id: 'void_potion_duration',
+    name: 'Eternal Brew',
+    description: '+5 minutes potion duration',
+    baseCost: 4,
+    costPerLevel: 2,
+    maxLevel: 6,
+    category: 'void_potion',
   },
 ];
 
