@@ -12,8 +12,12 @@ import ShopButton from "@/components/ShopButton";
 import ShopModal from "@/components/ShopModal";
 import PrestigeButton from "@/components/PrestigeButton";
 import VoidShopModal from "@/components/VoidShopModal";
+import VoidShopButton from "@/components/VoidShopButton";
 import LogoHeader from "@/components/LogoHeader";
+import AchievementButton from "@/components/AchievementButton";
+import AchievementPanel from "@/components/AchievementPanel";
 import { SHOP_ITEMS, calculateCost } from "@/lib/shopData";
+import { ACHIEVEMENTS } from "@/lib/achievementData";
 
 const MAX_NUMBER = 2_500_000_000;
 const PRESTIGE_THRESHOLD = 1_000_000_000;
@@ -47,6 +51,10 @@ const Index = () => {
   const [voidUpgrades, setVoidUpgrades] = useState<Record<string, number>>({});
   const [isVoidShopOpen, setIsVoidShopOpen] = useState(false);
   
+  // Achievement system (permanent, never resets)
+  const [unlockedAchievements, setUnlockedAchievements] = useState<Record<string, boolean>>({});
+  const [isAchievementOpen, setIsAchievementOpen] = useState(false);
+  
   const autoRollRef = useRef<NodeJS.Timeout | null>(null);
   const potionTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -65,8 +73,13 @@ const Index = () => {
   const potionDuration = basePotionDuration + voidPotionDuration;
   const effectivePotionBonus = POTION_BONUS + voidPotionPower;
 
-  // Calculate effective luck (base + permanent + potion bonus)
-  const effectiveLuck = luckMultiplier + permanentLuckBonus + (potionCount * effectivePotionBonus);
+  // Achievement luck bonus (permanent)
+  const achievementLuckBonus = ACHIEVEMENTS.reduce((total, achievement) => {
+    return total + (unlockedAchievements[achievement.id] ? achievement.luckReward : 0);
+  }, 0);
+
+  // Calculate effective luck (base + permanent + achievement + potion bonus)
+  const effectiveLuck = luckMultiplier + permanentLuckBonus + achievementLuckBonus + (potionCount * effectivePotionBonus);
 
   const generateNumber = useCallback((useSuperRoll: boolean) => {
     // Super roll now gets base 2x PLUS void upgrade bonus
@@ -122,11 +135,21 @@ const Index = () => {
       if (number > highestRoll) {
         setHighestRoll(number);
         setCurrency(number);
+        
+        // Check for new achievements
+        ACHIEVEMENTS.forEach((achievement) => {
+          if (number >= achievement.threshold && !unlockedAchievements[achievement.id]) {
+            setUnlockedAchievements((prev) => ({
+              ...prev,
+              [achievement.id]: true,
+            }));
+          }
+        });
       }
       
       setIsRolling(false);
     }, 150);
-  }, [generateNumber, highestRoll, isRolling, isSuperRoll, effectiveLuck]);
+  }, [generateNumber, highestRoll, isRolling, isSuperRoll, effectiveLuck, unlockedAchievements]);
 
   // Auto-roll logic
   useEffect(() => {
@@ -220,6 +243,7 @@ const Index = () => {
   const canPrestige = highestRoll >= PRESTIGE_THRESHOLD;
   const currentMaxRange = Math.min(Math.floor(50 * Math.pow(effectiveLuck, 4)), MAX_NUMBER);
   const superRollMultiplier = 2 + voidSuperRollBoost;
+  const unlockedCount = Object.values(unlockedAchievements).filter(Boolean).length;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8">
@@ -251,14 +275,6 @@ const Index = () => {
             voidPoints={voidPoints}
             onClick={handlePrestige}
           />
-          {voidPoints > 0 && (
-            <button
-              onClick={() => setIsVoidShopOpen(true)}
-              className="text-xs font-mono text-violet-400 hover:text-violet-300 transition-colors underline"
-            >
-              Open Void Shop ({voidPoints} VP)
-            </button>
-          )}
         </div>
 
         {/* Stats Row */}
@@ -280,6 +296,7 @@ const Index = () => {
         {/* Shop & Potion Row */}
         <div className="flex items-center justify-center gap-4 mb-6">
           <ShopButton onClick={() => setIsShopOpen(true)} currency={currency} />
+          <VoidShopButton onClick={() => setIsVoidShopOpen(true)} voidPoints={voidPoints} />
           <LuckPotion
             potionCount={potionCount}
             potionTimeLeft={potionTimeLeft}
@@ -289,11 +306,16 @@ const Index = () => {
         </div>
 
         {/* Upgrade Indicators */}
-        {(permanentLuckBonus > 0 || voidSuperRollBoost > 0) && (
+        {(permanentLuckBonus > 0 || voidSuperRollBoost > 0 || achievementLuckBonus > 0) && (
           <div className="text-center mb-4 space-y-1">
             {permanentLuckBonus > 0 && (
               <span className="text-xs font-mono text-accent block">
                 +{permanentLuckBonus.toFixed(2)} permanent luck from upgrades
+              </span>
+            )}
+            {achievementLuckBonus > 0 && (
+              <span className="text-xs font-mono text-primary block">
+                +{achievementLuckBonus.toFixed(2)} permanent luck from achievements
               </span>
             )}
             {voidSuperRollBoost > 0 && (
@@ -372,6 +394,21 @@ const Index = () => {
           />
         )}
       </AnimatePresence>
+
+      {/* Achievement Button */}
+      <AchievementButton
+        onClick={() => setIsAchievementOpen(true)}
+        unlockedCount={unlockedCount}
+        totalCount={ACHIEVEMENTS.length}
+      />
+
+      {/* Achievement Panel */}
+      <AchievementPanel
+        isOpen={isAchievementOpen}
+        onClose={() => setIsAchievementOpen(false)}
+        unlockedAchievements={unlockedAchievements}
+        highestRoll={highestRoll}
+      />
     </div>
   );
 };

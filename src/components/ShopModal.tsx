@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ShoppingBag, X, Sparkles, Zap, Beaker, Check, Lock } from "lucide-react";
+import { ShoppingBag, X, Sparkles, Zap, Beaker, Lock } from "lucide-react";
 import { SHOP_ITEMS, ShopItem, calculateCost, PlayerUpgrades } from "@/lib/shopData";
 
 interface ShopModalProps {
@@ -71,7 +71,6 @@ const ShopModal = ({ isOpen, onClose, currency, upgradeLevels, onPurchase }: Sho
           {SHOP_ITEMS.map((item) => {
             const currentLevel = upgradeLevels[item.id] || 0;
             const cost = calculateCost(item, currentLevel);
-            const isMaxed = currentLevel >= item.maxLevel;
             const canAfford = currency >= cost;
 
             return (
@@ -88,42 +87,25 @@ const ShopModal = ({ isOpen, onClose, currency, upgradeLevels, onPurchase }: Sho
                       <p className="text-sm text-muted-foreground">{item.description}</p>
                       <div className="flex items-center gap-2 mt-2">
                         <span className="text-xs font-mono text-muted-foreground">
-                          Level {currentLevel}/{item.maxLevel}
+                          Level {currentLevel}
                         </span>
-                        <div className="flex gap-0.5">
-                          {Array.from({ length: item.maxLevel }).map((_, i) => (
-                            <div
-                              key={i}
-                              className={`w-2 h-2 rounded-full ${
-                                i < currentLevel ? 'bg-current' : 'bg-muted'
-                              }`}
-                            />
-                          ))}
-                        </div>
                       </div>
                     </div>
                   </div>
 
                   <div className="text-right">
-                    {isMaxed ? (
-                      <div className="flex items-center gap-1 px-4 py-2 rounded-lg bg-muted text-muted-foreground">
-                        <Check className="w-4 h-4" />
-                        <span className="font-mono text-sm">MAX</span>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => canAfford && onPurchase(item.id, cost)}
-                        disabled={!canAfford}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm font-bold transition-all ${
-                          canAfford
-                            ? 'bg-accent text-accent-foreground hover:scale-105'
-                            : 'bg-muted text-muted-foreground cursor-not-allowed'
-                        }`}
-                      >
-                        {!canAfford && <Lock className="w-3 h-3" />}
-                        {cost.toLocaleString()}
-                      </button>
-                    )}
+                    <button
+                      onClick={() => canAfford && onPurchase(item.id, cost)}
+                      disabled={!canAfford}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm font-bold transition-all ${
+                        canAfford
+                          ? 'bg-accent text-accent-foreground hover:scale-105'
+                          : 'bg-muted text-muted-foreground cursor-not-allowed'
+                      }`}
+                    >
+                      {!canAfford && <Lock className="w-3 h-3" />}
+                      {cost.toLocaleString()}
+                    </button>
                   </div>
                 </div>
               </motion.div>
