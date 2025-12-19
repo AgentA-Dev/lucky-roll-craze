@@ -14,10 +14,65 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      profiles: {
+        Row: {
+          created_at: string | null
+          currency: number | null
+          highest_roll: number | null
+          id: string
+          prestige_count: number | null
+          total_rolls: number | null
+          unlocked_achievements: string[] | null
+          updated_at: string | null
+          upgrade_levels: Json | null
+          user_id: string
+          username: string
+          void_points: number | null
+          void_upgrades: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          currency?: number | null
+          highest_roll?: number | null
+          id?: string
+          prestige_count?: number | null
+          total_rolls?: number | null
+          unlocked_achievements?: string[] | null
+          updated_at?: string | null
+          upgrade_levels?: Json | null
+          user_id: string
+          username: string
+          void_points?: number | null
+          void_upgrades?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          currency?: number | null
+          highest_roll?: number | null
+          id?: string
+          prestige_count?: number | null
+          total_rolls?: number | null
+          unlocked_achievements?: string[] | null
+          updated_at?: string | null
+          upgrade_levels?: Json | null
+          user_id?: string
+          username?: string
+          void_points?: number | null
+          void_upgrades?: Json | null
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      leaderboard: {
+        Row: {
+          highest_roll: number | null
+          prestige_count: number | null
+          username: string | null
+          void_points: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
