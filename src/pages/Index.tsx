@@ -16,8 +16,14 @@ import VoidShopButton from "@/components/VoidShopButton";
 import LogoHeader from "@/components/LogoHeader";
 import AchievementButton from "@/components/AchievementButton";
 import AchievementPanel from "@/components/AchievementPanel";
-import { SHOP_ITEMS, calculateCost } from "@/lib/shopData";
+import AuthModal from "@/components/AuthModal";
+import LeaderboardModal from "@/components/LeaderboardModal";
+import UserHeader from "@/components/UserHeader";
 import { ACHIEVEMENTS } from "@/lib/achievementData";
+import { useAuth } from "@/hooks/useAuth";
+import { useGameSave } from "@/hooks/useGameSave";
+import { useSoundEffects } from "@/hooks/useSoundEffects";
+import { toast } from "@/hooks/use-toast";
 
 const MAX_NUMBER = 2_500_000_000;
 const PRESTIGE_THRESHOLD = 1_000_000_000;
@@ -55,8 +61,66 @@ const Index = () => {
   const [unlockedAchievements, setUnlockedAchievements] = useState<Record<string, boolean>>({});
   const [isAchievementOpen, setIsAchievementOpen] = useState(false);
   
+  // Auth & UI modals
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
+  const [gameLoaded, setGameLoaded] = useState(false);
+  
   const autoRollRef = useRef<NodeJS.Timeout | null>(null);
   const potionTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auth & save hooks
+  const { user, loading: authLoading, signOut } = useAuth();
+  const { loadGame, saveGame } = useGameSave(user);
+  const { 
+    playRollSound, 
+    playSuperRollSound, 
+    playAchievementSound, 
+    playHighScoreSound,
+    playPrestigeSound,
+    playPurchaseSound 
+  } = useSoundEffects();
+
+  // Load game on login
+  useEffect(() => {
+    if (user && !gameLoaded) {
+      loadGame().then((state) => {
+        if (state) {
+          setHighestRoll(state.highestRoll);
+          setRollCount(state.rollCount);
+          setPrestigeCount(state.prestigeCount);
+          setVoidPoints(state.voidPoints);
+          setCurrency(state.currency);
+          setUpgradeLevels(state.upgradeLevels);
+          setVoidUpgrades(state.voidUpgrades);
+          setUnlockedAchievements(state.unlockedAchievements);
+          toast({
+            title: 'Game Loaded',
+            description: `Welcome back! Highest roll: ${state.highestRoll.toLocaleString()}`,
+          });
+        }
+        setGameLoaded(true);
+      });
+    } else if (!user) {
+      setGameLoaded(false);
+    }
+  }, [user, loadGame, gameLoaded]);
+
+  // Save game on state changes
+  useEffect(() => {
+    if (user && gameLoaded) {
+      saveGame({
+        highestRoll,
+        rollCount,
+        prestigeCount,
+        voidPoints,
+        currency,
+        upgradeLevels,
+        voidUpgrades,
+        unlockedAchievements,
+      });
+    }
+  }, [user, gameLoaded, highestRoll, rollCount, prestigeCount, voidPoints, currency, upgradeLevels, voidUpgrades, unlockedAchievements, saveGame]);
 
   // Calculate upgrade bonuses
   const permanentLuckBonus = (upgradeLevels['permanent_luck'] || 0) * 0.25 + 
@@ -101,6 +165,13 @@ const Index = () => {
 
     const useSuperRoll = isSuperRoll;
     
+    // Play sound
+    if (useSuperRoll) {
+      playSuperRollSound();
+    } else {
+      playRollSound();
+    }
+    
     setTimeout(() => {
       const number = generateNumber(useSuperRoll);
       setCurrentNumber(number);
@@ -135,6 +206,7 @@ const Index = () => {
       if (number > highestRoll) {
         setHighestRoll(number);
         setCurrency(number);
+        playHighScoreSound();
         
         // Check for new achievements
         ACHIEVEMENTS.forEach((achievement) => {
@@ -143,13 +215,18 @@ const Index = () => {
               ...prev,
               [achievement.id]: true,
             }));
+            playAchievementSound();
+            toast({
+              title: `Achievement Unlocked!`,
+              description: `${achievement.name} - +${achievement.luckReward}x luck!`,
+            });
           }
         });
       }
       
       setIsRolling(false);
     }, 150);
-  }, [generateNumber, highestRoll, isRolling, isSuperRoll, effectiveLuck, unlockedAchievements]);
+  }, [generateNumber, highestRoll, isRolling, isSuperRoll, effectiveLuck, unlockedAchievements, playRollSound, playSuperRollSound, playHighScoreSound, playAchievementSound]);
 
   // Auto-roll logic
   useEffect(() => {
@@ -206,11 +283,13 @@ const Index = () => {
         ...prev,
         [itemId]: (prev[itemId] || 0) + 1,
       }));
+      playPurchaseSound();
     }
   };
 
   const handlePrestige = () => {
     if (highestRoll >= PRESTIGE_THRESHOLD) {
+      playPrestigeSound();
       setPrestigeCount((prev) => prev + 1);
       setVoidPoints((prev) => prev + 1);
       
@@ -225,8 +304,12 @@ const Index = () => {
       setRollsUntilSuper(10);
       setIsSuperRoll(false);
       setIsAutoRolling(false);
-      // Keep upgradeLevels (currency shop) - they reset with currency
       setUpgradeLevels({});
+      
+      toast({
+        title: 'Prestige Complete!',
+        description: 'You earned 1 Void Point. Progress reset.',
+      });
     }
   };
 
@@ -237,7 +320,28 @@ const Index = () => {
         ...prev,
         [itemId]: (prev[itemId] || 0) + 1,
       }));
+      playPurchaseSound();
     }
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    // Reset local state
+    setCurrentNumber(null);
+    setRollCount(0);
+    setLuckMultiplier(1);
+    setHighestRoll(0);
+    setCurrency(0);
+    setUpgradeLevels({});
+    setPrestigeCount(0);
+    setVoidPoints(0);
+    setVoidUpgrades({});
+    setUnlockedAchievements({});
+    setGameLoaded(false);
+    toast({
+      title: 'Logged Out',
+      description: 'See you next time!',
+    });
   };
 
   const canPrestige = highestRoll >= PRESTIGE_THRESHOLD;
@@ -247,6 +351,14 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8">
+      {/* User Header */}
+      <UserHeader
+        user={user}
+        onLoginClick={() => setIsAuthModalOpen(true)}
+        onLogoutClick={handleLogout}
+        onLeaderboardClick={() => setIsLeaderboardOpen(true)}
+      />
+
       {/* Background decorative elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
@@ -367,6 +479,15 @@ const Index = () => {
             <span className={effectiveLuck >= 9 ? "text-accent text-glow-accent" : "text-muted"}>9x: ~3B</span>
           </div>
         </div>
+
+        {/* Login prompt for non-logged users */}
+        {!user && !authLoading && (
+          <div className="mt-6 text-center">
+            <p className="text-sm text-muted-foreground mb-2">
+              Login to save your progress and compete on the leaderboard!
+            </p>
+          </div>
+        )}
       </motion.div>
 
       {/* Shop Modal */}
@@ -408,6 +529,18 @@ const Index = () => {
         onClose={() => setIsAchievementOpen(false)}
         unlockedAchievements={unlockedAchievements}
         highestRoll={highestRoll}
+      />
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+      />
+
+      {/* Leaderboard Modal */}
+      <LeaderboardModal
+        isOpen={isLeaderboardOpen}
+        onClose={() => setIsLeaderboardOpen(false)}
       />
     </div>
   );
