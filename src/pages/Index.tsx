@@ -30,6 +30,8 @@ const PRESTIGE_THRESHOLD = 1_000_000_000;
 const BASE_POTION_DURATION = 300;
 const POTION_BONUS = 0.5;
 const BASE_AUTO_ROLL_SPEED = 200;
+const BASE_ROLL_COOLDOWN = 4; // 4 seconds default
+const SUPER_RARE_CHANCE = 0.00034; // 0.034% chance for above-max roll
 
 const Index = () => {
   const [currentNumber, setCurrentNumber] = useState<number | null>(null);
@@ -123,11 +125,15 @@ const Index = () => {
   }, [user, gameLoaded, highestRoll, rollCount, prestigeCount, voidPoints, currency, upgradeLevels, voidUpgrades, unlockedAchievements, saveGame]);
 
   // Calculate upgrade bonuses
-  const permanentLuckBonus = (upgradeLevels['permanent_luck'] || 0) * 0.25 + 
-                              (upgradeLevels['luck_power'] || 0) * 0.5;
-  const autoRollSpeed = BASE_AUTO_ROLL_SPEED - (upgradeLevels['auto_speed'] || 0) * 50;
+  const permanentLuckBonus = (upgradeLevels['permanent_luck'] || 0) * 0.25;
+  const speedBoostLevel = upgradeLevels['auto_speed'] || 0;
+  const autoRollSpeed = BASE_AUTO_ROLL_SPEED - speedBoostLevel * 50;
   const maxPotionStacks = 3 + (upgradeLevels['potion_slots'] || 0);
   const basePotionDuration = BASE_POTION_DURATION + (upgradeLevels['potion_duration'] || 0) * 120;
+  const hasAutoRollUnlock = (upgradeLevels['auto_roll_unlock'] || 0) >= 1;
+  
+  // Roll cooldown: 4s base, -0.3s per speed boost level, min 1s at max level (10)
+  const rollCooldown = speedBoostLevel >= 10 ? 1 : Math.max(1, BASE_ROLL_COOLDOWN - (speedBoostLevel * 0.3));
   
   // Void upgrades
   const voidSuperRollBoost = (voidUpgrades['super_roll_boost'] || 0) * 5;
@@ -151,8 +157,20 @@ const Index = () => {
     const currentLuck = effectiveLuck * superRollMultiplier;
     const luckPower = Math.pow(currentLuck, 4);
     const effectiveMax = Math.min(Math.floor(50 * luckPower), MAX_NUMBER);
+    
+    // 0.034% chance for super rare roll above max range
+    if (Math.random() < SUPER_RARE_CHANCE) {
+      // Roll between max and 10x max (up to hard cap)
+      const superRareMax = Math.min(effectiveMax * 10, MAX_NUMBER * 4);
+      const superRareNumber = Math.floor(Math.random() * (superRareMax - effectiveMax)) + effectiveMax;
+      return superRareNumber;
+    }
+    
+    // Weighted distribution: lower numbers are more common
+    // Using exponential distribution to heavily favor lower numbers
     const random = Math.random();
-    const biasedRandom = Math.pow(random, 2);
+    // Power of 3 makes lower numbers MUCH more common
+    const biasedRandom = Math.pow(random, 3);
     const number = Math.floor(biasedRandom * effectiveMax) + 1;
     return number;
   }, [effectiveLuck, voidSuperRollBoost]);
@@ -450,11 +468,13 @@ const Index = () => {
             <SuperRollIndicator rollsUntilSuper={rollsUntilSuper} isSuperRoll={isSuperRoll} />
           </div>
 
-          <NumberDisplay number={currentNumber} isRare={isRare} />
+          <NumberDisplay number={currentNumber} isRare={isRare} isRolling={isRolling} />
 
           <div className="flex justify-center items-center gap-4 mt-8">
-            <AutoRollButton isAutoRolling={isAutoRolling} onClick={toggleAutoRoll} />
-            <RollButton onClick={handleRoll} isRolling={isRolling} isSuperRoll={isSuperRoll} />
+            {hasAutoRollUnlock && (
+              <AutoRollButton isAutoRolling={isAutoRolling} onClick={toggleAutoRoll} />
+            )}
+            <RollButton onClick={handleRoll} isRolling={isRolling} isSuperRoll={isSuperRoll} cooldown={rollCooldown} />
           </div>
 
           <div className="mt-6 flex items-center justify-center gap-2 text-muted-foreground">
