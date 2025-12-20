@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
-import { ShoppingBag, X, Sparkles, Zap, Beaker, Lock } from "lucide-react";
-import { SHOP_ITEMS, ShopItem, calculateCost, PlayerUpgrades } from "@/lib/shopData";
+import { ShoppingBag, X, Sparkles, Zap, Beaker, Lock, Check } from "lucide-react";
+import { SHOP_ITEMS, ShopItem, calculateCost } from "@/lib/shopData";
+import { forwardRef } from "react";
 
 interface ShopModalProps {
   isOpen: boolean;
@@ -10,7 +11,7 @@ interface ShopModalProps {
   onPurchase: (itemId: string, cost: number) => void;
 }
 
-const ShopModal = ({ isOpen, onClose, currency, upgradeLevels, onPurchase }: ShopModalProps) => {
+const ShopModal = forwardRef<HTMLDivElement, ShopModalProps>(({ isOpen, onClose, currency, upgradeLevels, onPurchase }, ref) => {
   if (!isOpen) return null;
 
   const getCategoryIcon = (category: ShopItem['category']) => {
@@ -72,6 +73,7 @@ const ShopModal = ({ isOpen, onClose, currency, upgradeLevels, onPurchase }: Sho
             const currentLevel = upgradeLevels[item.id] || 0;
             const cost = calculateCost(item, currentLevel);
             const canAfford = currency >= cost;
+            const isMaxed = currentLevel >= item.maxLevel;
 
             return (
               <motion.div
@@ -87,25 +89,32 @@ const ShopModal = ({ isOpen, onClose, currency, upgradeLevels, onPurchase }: Sho
                       <p className="text-sm text-muted-foreground">{item.description}</p>
                       <div className="flex items-center gap-2 mt-2">
                         <span className="text-xs font-mono text-muted-foreground">
-                          Level {currentLevel}
+                          {isMaxed ? 'MAX LEVEL' : `Level ${currentLevel}`}
                         </span>
                       </div>
                     </div>
                   </div>
 
                   <div className="text-right">
-                    <button
-                      onClick={() => canAfford && onPurchase(item.id, cost)}
-                      disabled={!canAfford}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm font-bold transition-all ${
-                        canAfford
-                          ? 'bg-accent text-accent-foreground hover:scale-105'
-                          : 'bg-muted text-muted-foreground cursor-not-allowed'
-                      }`}
-                    >
-                      {!canAfford && <Lock className="w-3 h-3" />}
-                      {cost.toLocaleString()}
-                    </button>
+                    {isMaxed ? (
+                      <div className="flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm font-bold bg-green-500/20 text-green-400">
+                        <Check className="w-4 h-4" />
+                        Owned
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => canAfford && onPurchase(item.id, cost)}
+                        disabled={!canAfford}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-mono text-sm font-bold transition-all ${
+                          canAfford
+                            ? 'bg-accent text-accent-foreground hover:scale-105'
+                            : 'bg-muted text-muted-foreground cursor-not-allowed'
+                        }`}
+                      >
+                        {!canAfford && <Lock className="w-3 h-3" />}
+                        {cost.toLocaleString()}
+                      </button>
+                    )}
                   </div>
                 </div>
               </motion.div>
@@ -120,6 +129,8 @@ const ShopModal = ({ isOpen, onClose, currency, upgradeLevels, onPurchase }: Sho
       </motion.div>
     </motion.div>
   );
-};
+});
+
+ShopModal.displayName = 'ShopModal';
 
 export default ShopModal;

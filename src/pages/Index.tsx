@@ -468,7 +468,7 @@ const Index = () => {
             <SuperRollIndicator rollsUntilSuper={rollsUntilSuper} isSuperRoll={isSuperRoll} />
           </div>
 
-          <NumberDisplay number={currentNumber} isRare={isRare} isRolling={isRolling} />
+          <NumberDisplay number={currentNumber} isRare={isRare} />
 
           <div className="flex justify-center items-center gap-4 mt-8">
             {hasAutoRollUnlock && (
