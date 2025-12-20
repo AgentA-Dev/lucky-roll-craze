@@ -218,15 +218,6 @@ const AuthModal = ({ isOpen, onClose }: AuthModalProps) => {
               </button>
             </div>
 
-            {mode === 'signup' && (
-              <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-                <p className="text-xs text-muted-foreground text-center">
-                  Premade accounts available:<br />
-                  <span className="text-primary">Thirdy_UC, Billster, Vexx, Aeon, Agent_A</span><br />
-                  Email: [name]@game.com | Password: game1234
-                </p>
-              </div>
-            )}
           </motion.div>
         </motion.div>
       )}
