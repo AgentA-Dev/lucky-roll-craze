@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { X, Zap, Sparkles } from "lucide-react";
 import { VOID_SHOP_ITEMS, VoidShopItem } from "@/lib/shopData";
+import { forwardRef } from "react";
 
 interface VoidShopModalProps {
   isOpen: boolean;
@@ -10,7 +11,7 @@ interface VoidShopModalProps {
   onPurchase: (itemId: string, cost: number) => void;
 }
 
-const VoidShopModal = ({ isOpen, onClose, voidPoints, voidUpgrades, onPurchase }: VoidShopModalProps) => {
+const VoidShopModal = forwardRef<HTMLDivElement, VoidShopModalProps>(({ isOpen, onClose, voidPoints, voidUpgrades, onPurchase }, ref) => {
   if (!isOpen) return null;
 
   const getCost = (item: VoidShopItem, level: number) => {
@@ -106,6 +107,8 @@ const VoidShopModal = ({ isOpen, onClose, voidPoints, voidUpgrades, onPurchase }
       </motion.div>
     </motion.div>
   );
-};
+});
+
+VoidShopModal.displayName = 'VoidShopModal';
 
 export default VoidShopModal;
